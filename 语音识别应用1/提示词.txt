@@ -1,0 +1,344 @@
+# 语音识别应用 – 完整项目文档（PRD + 技术设计 + AGENTS.md + 开发技巧指南）
+
+> 本文档融合了产品需求、技术方案、开发规范以及基于MediaRecorder API和阿里云语音识别的最佳实践，供开发时直接使用。
+
+
+## 一、产品需求文档（PRD）
+
+### 项目概述
+一款基于 React + TypeScript 的语音识别应用，调用阿里云智能语音交互 API 实现语音转文字。用户点击按钮开始录音，再点击停止，然后将录制的语音转换为文字。支持多种语言识别，识别结果可以编辑，并保存到历史记录中。界面采用简洁的单页面设计，中央为大圆形录音按钮，底部显示历史记录。
+
+### 核心功能
+
+#### 1. 录音功能
+- 页面中央有一个大大的圆形录音按钮，直径 120px，醒目易用。
+- 点击按钮开始录音，按钮变为红色并带有脉冲/心跳动画，提示正在录音状态。
+- 再点击同一按钮停止录音（或提供独立的停止按钮）。
+- 录音时显示实时计时，让用户了解已录制时长。
+- 可通过 MediaRecorder API 录制音频，不依赖任何额外库。
+- 首次使用时浏览器会询问麦克风权限，若用户拒绝需给出友好提示并提供“重新请求权限”按钮。
+
+#### 2. 语音识别
+- 停止录音后自动显示“开始识别”按钮，用户可手动触发识别（避免误操作）。
+- 识别过程显示加载动画和提示文字（“正在识别中，请稍候…”）。
+- 调用阿里云语音识别 API（DashScope），上传录制的音频文件。
+- 支持多种语言识别，默认识别中文普通话（如有需要可扩展选择）。
+- 识别结果显示在界面上方的结果区域，支持编辑和修改。
+- 识别结果区域提供复制按钮，方便复制识别文本。
+- 错误时显示友好提示（如“识别失败，请重试”、“网络连接失败”等）。
+
+#### 3. 历史记录管理
+- 每次识别成功后自动保存记录到 `localStorage`。
+- 每条记录包含：识别文本、时间戳。
+- 底部（或侧边栏）显示历史记录列表，按时间倒序排列。
+- 点击历史记录可以加载该文本到结果区域（便于复用或继续编辑）。
+- 支持单条删除或“清空所有历史”按钮。
+
+### 非功能性需求
+- 界面简洁现代，深色主题（背景 `#0a0a0a`，卡片 `#1e1e1e`，文字 `#e0e0e0`）。
+- 响应式布局：桌面端居中显示，移动端适配触摸操作。
+- 录音按钮必须有鲜明的视觉反馈：开始→红色+脉冲动画，录音中→计时显示，停止→恢复默认，识别中→加载动画。
+- 限制录音时长（如最长 60 秒），到时时自动停止并触发识别。
+- 支持实时显示录音时长，让用户知道录了多久。
+- 录音时禁用识别按钮，识别时禁用录音按钮，避免状态冲突。
+- 录音过程中应实时显示音量波形（可选，提升体验）。
+
+### 扩展思路（可选）
+- 添加实时识别功能（边说边识别），提升用户体验。
+- 添加语音翻译功能，识别后自动翻译成其他语言。
+- 支持多人对话识别，区分不同说话人。
+- 添加关键词提取功能，自动提取重要信息。
+- 导出对话记录为 Markdown 或文本文件。
+- 集成到其他应用，如聊天助手支持语音输入。
+
+
+## 二、技术设计文档
+
+### 技术栈
+| 类别 | 技术选型 |
+|------|---------|
+| 前端框架 | React 18 + TypeScript + Vite |
+| 样式方案 | Tailwind CSS |
+| 录音 API | MediaRecorder API（浏览器原生） |
+| 语音识别 API | 阿里云 DashScope（智能语音交互） |
+| 网络请求 | Fetch API |
+| 存储 | localStorage |
+| 图标库 | lucide-react（麦克风、历史、复制等图标） |
+
+### 项目结构
+```
+src/
+├── components/
+│   ├── RecordButton.tsx       // 中央大圆形录音按钮，处理开始/停止录音
+│   ├── ResultPanel.tsx        // 识别结果展示区域（可编辑文本框 + 复制按钮）
+│   ├── HistoryPanel.tsx       // 历史记录列表
+│   ├── LoadingIndicator.tsx   // 加载动画组件
+│   └── TimerDisplay.tsx       // 录音时长显示
+├── services/
+│   └── aliyunAsrApi.ts        // 封装阿里云语音识别 API 调用
+├── hooks/
+│   ├── useRecorder.ts         // 封装 MediaRecorder 录音逻辑
+│   ├── useLocalStorage.ts     // 封装 localStorage 读写
+│   └── useTimer.ts            // 录音计时逻辑
+├── types/
+│   └── asr.ts                 // TranscriptionRecord 等类型定义
+├── utils/
+│   ├── audioBlobToBase64.ts   // 音频 Blob 转 Base64（供 API 使用）
+│   ├── formatTime.ts          // 秒数 → MM:SS 格式化
+│   └── errorHandler.ts
+├── App.tsx
+├── main.tsx
+└── index.css
+```
+
+### 核心实现要点
+
+#### 1. 数据类型定义
+```typescript
+interface TranscriptionRecord {
+  id: string;              // timestamp + random
+  text: string;            // 识别文本
+  timestamp: number;       // 识别时间戳（毫秒）
+}
+
+interface RecognitionResult {
+  text: string;            // 识别出的文字
+  requestId?: string;      // API 请求 ID（用于调试）
+}
+```
+
+#### 2. 录音实现（`useRecorder` Hook）
+- 使用 `navigator.mediaDevices.getUserMedia({ audio: true })` 请求麦克风权限。
+- 创建 `MediaRecorder` 实例，配置 `mimeType: 'audio/webm'` 或 `'audio/wav'`。
+- 监听 `dataavailable` 事件收集音频数据块到 `audioChunks` 数组。
+- 停止录音时，将 `audioChunks` 组合成 `Blob`。
+- 录音时显示实时计时，最长 60 秒自动停止。
+
+示例核心代码：
+```typescript
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+const audioChunks: Blob[] = [];
+mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
+mediaRecorder.onstop = () => {
+  const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+  // 上传或保存
+};
+mediaRecorder.start();
+```
+
+#### 3. 阿里云语音识别 API 封装（`aliyunAsrApi.ts`）
+
+阿里云提供多种语音识别服务模式，本应用推荐使用**非实时语音识别（录音文件识别）** 方案，适合录音后再识别的场景。
+
+**API 调用流程**：
+1. 提交任务：将音频文件 URL（需上传到可公网访问的位置）发送至阿里云。
+2. 查询任务：轮询查询任务状态，直到完成（`SUCCEEDED`）。
+3. 获取结果：从返回结果中提取识别文本。
+
+**核心参数**：
+- `model`：推荐使用 `fun-asr`（Fun-ASR 录音文件识别模型，性价比高）
+- `input.file_urls`：音频文件的公网 URL 数组（最大 100 个）
+- `parameters.language_hints`：语言提示，如 `["zh", "en"]`
+- `parameters.diarization_enabled`：说话人分离（可选）
+
+**提交任务接口**：
+- URL：`https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription`
+- 方法：`POST`
+- 请求头：`Authorization: Bearer ${DASHSCOPE_API_KEY}`、`Content-Type: application/json`、`X-DashScope-Async: enable`
+
+**查询任务接口**：
+- URL：`https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}`
+- 方法：`GET`
+- 请求头：`Authorization: Bearer ${DASHSCOPE_API_KEY}`
+
+**音频文件处理**：
+阿里云要求音频文件可通过公网 URL 访问，前端录制的音频 Blob 需要先上传到服务器或使用临时存储服务。简化方案：使用 FileReader 将 Blob 转为 Base64 字符串，通过 API 直接提交（部分云服务支持此方式）。建议方案：后端提供 `/upload` 接口接收音频文件并返回临时 URL，前端再调用阿里云 ASR API。
+
+**音频格式要求**：
+- 采样率：16kHz
+- 编码格式：PCM、WAV、MP3、AAC、OPUS 等
+- 声道：单声道
+- 时长限制：单个音频文件不超过 512 MB，24 小时内完成识别
+
+#### 4. 历史记录
+- 使用 `useLocalStorage` hook 存储 `TranscriptionRecord[]`，键名 `asr-history`。
+- 每次识别成功后自动保存。
+- 历史面板渲染列表，点击记录加载文本到结果区域。
+- 删除功能：单条删除或全部清空。
+
+#### 5. 结果编辑与复制
+- 结果区域使用 `<textarea>` 或 `<div contenteditable>` 实现编辑。
+- 复制按钮调用 `navigator.clipboard.writeText()` 复制编辑后的文本。
+
+### 环境变量
+- 创建 `.env.local` 文件：
+  ```
+  VITE_DASHSCOPE_API_KEY=sk-fceac990910f4cbb84298283993babb7
+  ```
+- 如果使用 DeepSeek 做额外优化（如提示词优化），还需配置：
+  ```
+  VITE_DEEPSEEK_API_KEY=sk-b2af4751f829411396bed98117d3958b
+  ```
+- 确保 `.gitignore` 包含 `.env.local`。
+
+### 响应式布局
+- 使用 Tailwind 的 `flex flex-col items-center justify-center min-h-screen` 实现居中布局。
+- 录音按钮固定尺寸（120px × 120px），移动端自动适配触摸区域（最小 44px × 44px）。
+- 结果区域和历史记录区域使用卡片样式，宽度自适应。
+
+
+## 三、AGENTS.md（开发指令）
+
+### 项目概述
+开发一个基于 React + TypeScript + Vite + Tailwind CSS 的语音识别应用，使用 MediaRecorder API 实现浏览器录音，调用阿里云智能语音交互 API（DashScope）实现语音转文字，支持历史记录管理与识别结果编辑。
+
+### 开发规范
+- 使用函数式组件 + Hooks，TypeScript 严格模式。
+- 样式统一使用 Tailwind CSS，避免自定义 CSS（除非绝对必要）。
+- 组件拆分：`RecordButton`、`ResultPanel`、`HistoryPanel`、`TimerDisplay` 等。
+- API 调用统一封装在 `services/aliyunAsrApi.ts`。
+- 环境变量名以 `VITE_` 开头，API Key 不硬编码。
+- 所有用户配置（历史记录）使用 `localStorage`。
+- 代码添加必要注释，特别是麦克风权限处理和音频上传逻辑。
+- 组件职责单一，自定义 Hook 封装复用逻辑（`useRecorder`、`useTimer`、`useLocalStorage`）。
+
+### 功能实现顺序（建议）
+1. **初始化项目**：Vite + React + TypeScript + Tailwind CSS。
+2. **安装依赖**：`lucide-react` 等。
+3. **定义类型**：`types/asr.ts` 定义 `TranscriptionRecord`。
+4. **实现录音 Hook（`useRecorder`）** ：
+   - 请求麦克风权限。
+   - 使用 MediaRecorder 录制音频。
+   - 实时计时（60 秒限制）。
+   - 返回音频 Blob 和录音状态。
+5. **搭建基础 UI**：
+   - 中央圆形录音按钮。
+   - 计时显示区域。
+   - 结果展示区域（文本框 + 复制按钮）。
+6. **实现阿里云 API 调用**：
+   - 封装提交任务和查询任务函数。
+   - 处理音频 Blob → 临时 URL 或 Base64。
+   - 轮询查询直到识别完成。
+7. **连接录音与识别**：
+   - 停止录音 → 显示“开始识别”按钮 → 点击后调用 API。
+   - 识别过程中显示加载动画，禁止重复点击。
+8. **实现历史记录**：
+   - 使用 `useLocalStorage`。
+   - 底部显示历史列表，支持点击加载和删除。
+9. **完善用户体验**：
+   - 麦克风权限拒绝提示 + 重新授权按钮。
+   - 录音脉冲动画。
+   - 自动滚动到底部（历史记录）。
+   - 错误处理与友好提示。
+10. **扩展功能（可选）** ：实时识别、语音翻译、说话人分离等。
+
+### 设计要求
+- 深色主题：背景 `#0a0a0a`，卡片背景 `#1e1e1e`，文字 `#e0e0e0`。
+- 录音按钮：直径 120px，背景渐变（`from-red-500 to-red-700`），录音时有脉冲动画（`animate-pulse`）。
+- 计时显示：等宽字体，醒目字号。
+- 结果区域：深色背景 `#2d2d2d`，边框 `#404040`，圆角，支持多行编辑。
+- 历史记录项：hover 高亮，删除按钮红色。
+- 移动端适配：按钮触摸区域足够大，文字可读。
+
+### 注意事项
+- **麦克风权限**：首次使用时浏览器会弹出询问，必须在用户明确操作（如点击录音按钮）后请求权限，而不能在页面加载时自动请求（会被浏览器策略拦截）。API Key 不应在代码中硬编码，应使用环境变量并通过服务器端中转或代理。
+- **音频格式兼容**：MediaRecorder 默认录制格式为 `audio/webm`，阿里云 API 支持 WebM/OPUS 格式，可直接上传。
+- **录音时长限制**：避免文件过大，设置 60 秒上限，到达时自动停止录音。
+- **轮询策略**：识别任务需要轮询查询，建议设置 2-3 秒轮询间隔，最多轮询 10-15 次（约 30-45 秒），超时后提示“识别超时，请重试”。
+- **并发控制**：识别过程中禁止再次点击识别按钮，录音过程中禁止切换页面导致状态丢失。
+- **用户拒绝权限**：显示提示“需要麦克风权限才能录音，请在浏览器设置中允许访问麦克风”，并提供“重新请求权限”按钮。
+- **性能优化**：音频 Blob 的大小可能较大，上传时显示进度；历史记录列表过长时可添加分页或虚拟滚动。
+- **免费额度**：阿里云语音识别为免费用户提供试用额度（如每日 2 小时免费时长），测试时控制调用频率。
+
+
+## 四、阿里云智能语音交互开发指南（30 年编辑经验版）
+
+### 4.1 服务开通
+
+1. **注册阿里云账号**：访问 [aliyun.com](https://www.aliyun.com) 注册并完成实名认证。
+2. **开通智能语音交互**：登录阿里云控制台，搜索“智能语音交互”并开通服务。
+3. **创建项目**：在控制台创建项目，系统自动生成 AppKey。
+4. **获取 API Key**：前往百炼控制台获取 API Key。
+5. **配置环境变量**：将 API Key 配置到 `.env.local`，而非硬编码在代码中。
+
+### 4.2 API 调用方式详解
+
+#### 一句话识别（实时，<1 分钟）
+适合短语音交互场景（语音搜索、语音指令），前端实时发送音频流，服务端实时返回识别结果。本应用（录音后识别）不强制使用实时模式。
+
+#### 录音文件识别（非实时，推荐）
+适合录音文件上传后识别的场景：
+- 提交任务（HTTP POST），返回 `task_id`。
+- 轮询查询任务状态，直到 `status = SUCCEEDED`。
+- 从响应中提取 `transcription_url`，下载识别结果 JSON。
+- 解析 JSON 获取文本内容。
+
+**模型选择**：
+- `fun-asr`：Fun-ASR 模型，性价比高，支持多语言（中文普通话、英语、粤语、日语、韩语、俄语等）。
+- `paraformer-v2`：高精度模型，适合对准确性要求更高的场景。
+- `qwen3.5-omni-plus`：支持多模态、Prompt 上下文、多语种。
+
+### 4.3 音频格式与采样率要求
+- 采样率：16kHz 或 8kHz
+- 声道：单声道（mono）
+- 编码格式：PCM、WAV、MP3、OGG、OPUS、AAC、AMR 等
+- MediaRecorder 默认录制的 WebM（OPUS）格式可直接使用，无需转换。
+
+### 4.4 前端音频上传方案
+
+由于阿里云要求音频文件可通过公网 URL 访问，有以下三种方案：
+
+**方案一：本地开发 + 简单代理**
+直接使用 FileReader 将 Blob 转为 Base64，通过后端代理接口转发给阿里云（适合本地调试）。
+
+**方案二：临时存储 + 公网 URL**（推荐）
+1. 前端录音 → Blob。
+2. 上传到服务器（提供 `/upload` 接口），服务器返回临时 URL。
+3. 前端将临时 URL 发送给阿里云 ASR API。
+4. 服务器定期清理过期文件。
+
+**方案三：使用阿里云 OSS**
+将音频文件上传到自己的 OSS Bucket，生成带签名的临时 URL 提交给 ASR API。
+
+### 4.5 错误处理参考
+
+| 错误场景 | 友好提示 |
+|---------|---------|
+| 麦克风权限拒绝 | “需要麦克风权限才能录音，请在浏览器设置中允许访问麦克风。” |
+| 网络连接失败 | “网络连接失败，请检查网络后重试。” |
+| API Key 无效 | “服务配置错误，请联系管理员。”（开发期使用） |
+| 音频格式不支持 | “音频格式不支持，请尝试重新录音。” |
+| 识别超时（轮询超时） | “识别超时，请重试。” |
+| 文件过大 | “录音文件过大，请缩短录音时长（≤60 秒）。” |
+
+### 4.6 成本控制建议
+- 阿里云智能语音交互提供免费试用额度：每日 2 小时免费识别时长。
+- 开发测试时使用 `fun-asr`（性价比高），避免使用 `paraformer-v2` 等高精度模型。
+- 优化音频质量后再识别，避免因识别效果差而反复调用浪费额度。
+- 若并发场景较多，可考虑使用临时鉴权 Token 替代 API Key，提高安全性。
+
+### 4.7 扩展：实时语音识别
+如需实现“边说边识别”的实时体验，可使用阿里云实时语音识别 WebSocket 接口：
+1. 与服务端建立 WebSocket 连接。
+2. 客户端循环发送音频数据块（每块约 100-200ms）。
+3. 服务端返回中间识别结果（`enable_intermediate_result=true`）。
+4. 录音结束后发送结束标识，服务端返回最终结果。
+
+
+## 附录：API Key 说明与使用
+
+| 服务 | API Key | 用途 |
+|------|---------|------|
+| 阿里云 DashScope（智能语音交互） | `sk-fceac990910f4cbb84298283993babb7` | 语音识别（ASR） |
+| DeepSeek API（备用） | `sk-b2af4751f829411396bed98117d3958b` | 辅助功能（如文本优化，可选） |
+
+⚠️ **重要提醒**：
+1. API Key 必须在代码中使用环境变量读取，绝对不能硬编码。
+2. 确保 `.env.local` 已添加到 `.gitignore`，避免泄露到版本库。
+3. 阿里云智能语音交互需要提前在控制台开通服务并创建项目。
+4. 免费试用额度用完后将按量计费，测试结束后注意控制调用频率。
+
+---
+
+**文档结束**

@@ -1,0 +1,198 @@
+# AI 聊天助手 – PRD
+
+## 项目概述
+一款基于 React + TypeScript 的 AI 聊天助手，调用 DeepSeek API（兼容 OpenAI Chat Completions 格式）实现智能对话。支持多轮对话（AI 能记住上下文）、流式输出（逐字显示回答）、Markdown 渲染（含代码高亮）以及对话历史本地存储。界面采用类似微信的聊天布局。
+
+## 核心功能
+
+### 1. 对话交互
+- 用户通过底部输入框输入问题，点击“发送”按钮或按回车键发送消息。
+- AI 根据对话历史返回智能回答。
+- 支持多轮对话：每次请求需将之前的所有消息（用户消息 + AI 消息）一同发送给 API，确保 AI 理解上下文。
+- AI 回答采用**流式输出**（stream = true），实现类似打字机的逐字显示效果，提升用户体验。
+
+### 2. 消息展示
+- 界面布局类似微信聊天：
+  - 用户消息靠右显示，背景色为蓝色或品牌色。
+  - AI 消息靠左显示，背景色为灰色或卡片色。
+  - 每条消息包含头像（可用图标代替）、内容、时间戳（可选）。
+- AI 回答内容支持 **Markdown 格式**：标题、列表、链接、表格、代码块等需正确渲染。
+- 代码块需提供**语法高亮**（支持常见编程语言）并显示复制按钮，方便用户复制代码。
+
+### 3. 对话持久化
+- 所有对话消息（包括用户和 AI 消息）自动保存至浏览器 `localStorage`。
+- 页面刷新后自动加载最近一次对话历史，不丢失上下文。
+- 提供 **“清空对话”** 按钮，一键清除当前对话历史，开始新话题。
+
+### 4. 状态与错误处理
+- 发送消息后，输入框禁用，显示加载指示器（如“AI 正在思考…”或三点跳动动画）。
+- 流式输出期间不可重复发送新消息，直到 AI 回答完成。
+- API 调用失败时（网络错误、API Key 无效、超限等），显示友好错误提示（如“请求失败，请稍后重试”），并恢复输入框状态。
+- 支持重试机制（可选，由用户手动重新发送）。
+
+### 5. 体验增强（可选但推荐）
+- 新消息出现时自动滚动到底部。
+- AI 回答的每个代码块右上角添加“复制”按钮，点击复制代码内容。
+- 支持系统提示词（system prompt）预设，可让用户选择 AI 角色（如“编程助手”、“翻译官”等）作为扩展功能。
+
+## 非功能性需求
+- 简洁现代的设计风格，深色/浅色主题可选（建议深色为主，背景 `#0a0a0a`，消息气泡适配）。
+- 响应式布局：桌面端聊天区域居中，移动端全屏显示。
+- 性能优化：流式输出时避免频繁重新渲染整个消息列表，使用 DOM 局部更新或合理使用 React key。
+- API Key 必须通过环境变量管理，严禁硬编码。
+
+---
+
+# AI 聊天助手 – 技术设计文档
+
+## 技术栈
+| 类别       | 技术选型                                |
+|-----------|---------------------------------------|
+| 前端框架   | React 18 + TypeScript + Vite          |
+| 样式方案   | Tailwind CSS                          |
+| AI 模型 API | DeepSeek API（兼容 OpenAI 接口格式）    |
+| 流式请求   | 原生 fetch + ReadableStream 或 EventSource |
+| Markdown 渲染 | react-markdown + remark-gfm          |
+| 代码高亮   | react-syntax-highlighter              |
+| 存储       | localStorage                          |
+| 图标库     | lucide-react（复制、发送、清空等图标）  |
+
+## 项目结构
+```
+src/
+├── components/
+│   ├── ChatMessage.tsx       // 单条消息气泡（区分 user/assistant，支持 Markdown）
+│   ├── ChatInput.tsx         // 输入框 + 发送按钮，支持回车发送
+│   ├── ChatContainer.tsx     // 消息列表容器，负责滚动到底部
+│   ├── LoadingIndicator.tsx  // 加载动画（思考中...）
+│   └── CodeBlock.tsx         // 自定义代码块组件（含复制按钮）
+├── services/
+│   └── deepseekApi.ts        // 封装 DeepSeek API 调用（流式 + 非流式）
+├── hooks/
+│   ├── useLocalStorage.ts    // 封装 localStorage 读写
+│   └── useStreamingMessage.ts // 处理流式消息的累积和回调
+├── types/
+│   └── chat.ts               // Message 类型定义
+├── utils/
+│   ├── markdown.ts           // Markdown 配置（可选）
+│   └── errorHandler.ts       // 错误信息转换
+├── App.tsx
+├── main.tsx
+└── index.css
+```
+
+## 核心实现要点
+
+### 1. 数据结构
+```typescript
+interface Message {
+  id: string;          // uuid 或时间戳
+  role: 'user' | 'assistant' | 'system'; // 角色
+  content: string;     // 纯文本或 Markdown 原文
+  timestamp: number;   // 时间戳
+}
+```
+
+### 2. DeepSeek API 封装（`deepseekApi.ts`）
+- 基础 URL：`https://api.deepseek.com/v1/chat/completions`
+- 请求方法：`POST`
+- Headers：
+  - `Content-Type: application/json`
+  - `Authorization: Bearer ${API_KEY}`
+- 参数（流式）：
+  ```json
+  {
+    "model": "deepseek-chat",
+    "messages": [...],
+    "stream": true,
+    "temperature": 0.7
+  }
+  ```
+- 返回处理：使用 `fetch` 获取 `ReadableStream`，逐行解析 `data: {...}`，直到 `[DONE]`。
+- 非流式（用于后备）：也可实现但主要采用流式。
+- API Key 从环境变量 `VITE_DEEPSEEK_API_KEY` 读取。
+
+### 3. 流式输出实现方案
+- 在 `ChatContainer` 中维护 `messages` 状态。
+- 用户发送消息后，添加用户消息到列表，然后调用流式 API。
+- 创建一个临时的“AI 消息占位符”（content 为空），添加到消息列表末尾。
+- 随着流式数据到达，逐块追加内容到该占位符的 `content` 字段，触发重新渲染。
+- 流结束时移除加载状态，最终保留完整 AI 消息。
+
+### 4. Markdown 与代码高亮
+- 使用 `react-markdown` 渲染 AI 消息的 `content`。
+- 自定义 `code` 组件：检测语言，使用 `SyntaxHighlighter` 渲染（样式如 `vscDarkPlus`）。
+- 添加复制按钮：通过 `navigator.clipboard.writeText()` 复制代码块内容。
+
+### 5. 本地存储
+- 存储键名：`chat-messages`
+- 使用 `useLocalStorage` hook 初始化 `messages`。
+- 每次 `messages` 变化（添加新消息、清空）时，自动同步到 localStorage。
+- 清空操作：设置 `messages = []` 并清空存储。
+
+## 环境变量
+- 创建 `.env.local` 文件：
+  ```
+  VITE_DEEPSEEK_API_KEY=sk-b2af4751f829411396bed98117d3958b
+  ```
+- 在代码中通过 `import.meta.env.VITE_DEEPSEEK_API_KEY` 访问。
+- 确保 `.gitignore` 包含 `.env.local`。
+
+## 响应式布局
+- 使用 Tailwind 的 `flex flex-col` 占满视口高度。
+- `ChatContainer` 使用 `overflow-y-auto`，固定高度（如 `h-[calc(100vh-120px)]`）。
+- 输入框固定在底部。
+
+---
+
+# AI 聊天助手 – AGENTS.md（开发指令）
+
+## 项目概述
+开发一个基于 React + TypeScript + Vite + Tailwind CSS 的 AI 聊天助手，调用 DeepSeek API 实现流式对话，支持多轮对话、Markdown 渲染、代码高亮和本地存储。
+
+## 开发规范
+- 使用函数式组件 + Hooks，TypeScript 严格模式。
+- 样式统一使用 Tailwind CSS，避免自定义 CSS（除非绝对必要）。
+- 组件划分：`ChatMessage`、`ChatInput`、`ChatContainer`、`LoadingIndicator`、`CodeBlock` 等。
+- API 调用统一放在 `services/deepseekApi.ts`，使用 `fetch` 处理流式响应。
+- 环境变量名必须以 `VITE_` 开头。
+- 代码中必须包含适当的错误处理和用户提示。
+- 添加必要的中文注释，特别是流式数据处理和滚动逻辑。
+
+## 功能实现顺序（建议）
+1. **初始化项目**：Vite + React + TypeScript + Tailwind CSS。
+2. **安装依赖**：`react-markdown`、`react-syntax-highlighter`、`lucide-react` 等。
+3. **定义类型**：创建 `types/chat.ts`，定义 `Message`。
+4. **实现 API 封装**：编写 `deepseekApi.ts`，实现流式请求的基础函数（测试时用 console 输出）。
+5. **搭建静态界面**：`ChatContainer`、`ChatMessage`、`ChatInput`，模拟静态消息展示。
+6. **实现发送消息 + 流式显示**：
+   - 用户消息添加到列表。
+   - 调用 API 并创建占位 AI 消息。
+   - 处理流式数据，逐字更新占位消息内容。
+   - 完成后禁用加载状态。
+7. **支持多轮对话**：发送请求时将整个 `messages` 数组（过滤掉占位消息）发送给 API。
+8. **Markdown 渲染与代码高亮**：在 `ChatMessage` 中根据角色渲染 `react-markdown`，并自定义代码块组件。
+9. **本地存储**：使用 `useLocalStorage` 保存/加载 `messages`，实现清空对话按钮。
+10. **优化体验**：自动滚动到底部（使用 `useRef` 和 `scrollIntoView`），添加复制按钮，错误提示，加载动画。
+
+## 设计要求
+- 深色主题（推荐）：背景 `#0a0a0a`，消息气泡用户侧 `#2563eb`（蓝色），AI 侧 `#1e1e1e`（深灰），文字 `#e0e0e0`。
+- 输入框圆角，发送按钮使用渐变色（`from-blue-500 to-purple-600`）。
+- 每条消息包含头像（可简单用首字母或图标），间距合理。
+- 代码块背景 `#2d2d2d`，等宽字体，显示行号和复制按钮。
+- 移动端适配：消息气泡宽度不超过屏幕 80%，字体适当放大。
+
+## 注意事项
+- **流式 API 的解析**：注意 `data: [DONE]` 标识结尾，每一行格式为 `data: { "choices": [{"delta": {"content": "..."}}] }`。需处理不完整的 JSON 块。
+- **并发请求控制**：在 AI 回答未完成时，禁用发送按钮和输入框，避免重复请求。
+- **API Key 安全**：仅用于前端学习，实际生产应将请求代理到后端。务必确保 `.env.local` 不被提交。
+- **错误处理**：捕获网络错误、非 200 响应、解析错误等，显示“AI 暂时无法回答，请稍后重试”。
+- **长消息性能**：流式更新时，避免整个消息列表重新渲染。可使用 `React.memo` 优化每条消息。
+- **清空对话**：清空时需同时重置本地存储中的消息数组，并清空当前 UI。
+
+## 扩展思路（后续可选）
+- 支持多会话管理（新建/切换/删除会话）。
+- 添加系统提示词设置（自定义角色）。
+- 支持语音输入（Web Speech API）。
+- 导出对话记录为 JSON 或 Markdown 文件。
+- 接入图片识别（多模态模型）。

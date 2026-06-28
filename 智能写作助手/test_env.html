@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>环境变量测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>环境变量测试</h1>
+  <div id="result"></div>
+
+  <script>
+    // 模拟前端代码读取环境变量
+    console.log('Testing environment variable...');
+    
+    // Vite 的环境变量前缀是 VITE_
+    const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+    
+    console.log('VITE_DEEPSEEK_API_KEY:', apiKey ? 'Loaded' : 'Not found');
+    console.log('API Key length:', apiKey?.length || 0);
+    
+    const result = document.getElementById('result');
+    
+    if (apiKey) {
+      result.innerHTML = `
+        <p class="success">✓ 环境变量加载成功</p>
+        <p>API Key: ${apiKey.slice(0, 10)}...${apiKey.slice(-4)}</p>
+        <p>长度: ${apiKey.length} 字符</p>
+      `;
+    } else {
+      result.innerHTML = `
+        <p class="error">✗ 环境变量未加载</p>
+        <p>请检查 .env.local 文件是否存在</p>
+      `;
+    }
+  </script>
+</body>
+</html>

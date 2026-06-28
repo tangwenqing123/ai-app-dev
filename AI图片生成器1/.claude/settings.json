@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(cd \"c:\\\\Users\\\\25714\\\\Desktop\\\\新项目\\\\AI应用开发\" && npm create vite@latest ai-temp -- --template react-ts)",
+      "Read(//c/Users/25714/Desktop/新项目/AI应用开发/**)",
+      "Bash(cp -r ai-temp/* \"AI图片生成器1/\")",
+      "Bash(cp -r ai-temp/.* \"AI图片生成器1/\")",
+      "Bash(rm -rf ai-temp)",
+      "Bash(npm install *)",
+      "mcp__filesystem__create_directory",
+      "Bash(npm run *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "mcp__context7__query-docs",
+      "Bash(curl -s https://dashscope.aliyuncs.com/api/v1/services -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7')",
+      "WebSearch",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{\"model\":\"wan2.7-image\",\"input\":{\"text\":\"一只可爱的橘猫\"},\"parameters\":{\"size\":\"1024*1024\"}}')",
+      "WebFetch(domain:help.aliyun.com)",
+      "Bash(curl -s https://dashscope.aliyuncs.com/api/v1/models -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7')",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/text2image -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/images/generations -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -v -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/images/generations -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/v1/images/generations -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{ *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([s for s in d['output']['services'] if 'image' in s.get\\('apis',[{}]\\)[0].get\\('api_style',''\\).lower\\(\\) or 'image' in s.get\\('service',''\\).lower\\(\\)]\\)\")",
+      "Bash(curl -s \"https://dashscope.aliyuncs.com/api/v1/services\" -H \"Authorization: Bearer sk-fceac990910f4cbb84298283993babb7\")",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/v1/images/generations -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{\"model\":\"qwen-image-2.0-pro\",\"prompt\":\"a cute orange cat\",\"size\":\"1024x1024\"}')",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{\"model\":\"qwen-image-2.0-pro\",\"input\":{\"prompt\":\"a cute orange cat\"},\"parameters\":{\"size\":\"1024x1024\",\"n\":1}}' --connect-timeout 10 --max-time 30)",
+      "Bash(curl -s -X POST https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fceac990910f4cbb84298283993babb7' -d '{\"model\":\"qwen-image-2.0-pro\",\"input\":{\"prompt\":\"a cute orange cat\"},\"parameters\":{\"size\":\"1024*1024\"}}' --connect-timeout 10 --max-time 30)"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.vite/
+.next/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Large data
+*.mp4
+*.mp3
+*.zip
+*.rar
