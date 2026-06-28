@@ -158,7 +158,7 @@ interface GenerateParams {
 ### 环境变量
 - 创建 `.env.local`：
   ```
-  VITE_DEEPSEEK_API_KEY=sk-b2af4751f829411396bed98117d3958b
+  VITE_DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY
   ```
 
 ### 响应式布局
