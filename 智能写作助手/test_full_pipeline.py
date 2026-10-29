@@ -9,7 +9,7 @@ def test_full_streaming_pipeline():
     print("测试完整流式API调用流程")
     print("=" * 70)
     
-    api_key = "sk-b2af4751f829411396bed98117d3958b"
+    api_key = ""
     print(f"✓ 使用API Key: {api_key[:10]}...{api_key[-4:]}")
     
     url = "https://api.deepseek.com/v1/chat/completions"

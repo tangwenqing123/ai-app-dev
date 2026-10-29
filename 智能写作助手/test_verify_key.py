@@ -3,7 +3,7 @@ import urllib.request
 import urllib.error
 
 # 请在此粘贴您的有效API Key
-API_KEY = "sk-b2af4751f829411396bed98117d3958b"  # <-- 请替换为您PyCharm中使用的Key
+API_KEY = ""  # <-- 请替换为您PyCharm中使用的Key
 
 def test_api():
     print("=" * 60)
